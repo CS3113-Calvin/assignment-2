@@ -78,28 +78,31 @@ glm::vec3 PLAYER2_INIT_POSITION = glm::vec3(4.5f, 0.0f, 0.0f);
 // Paddle 1
 glm::vec3 g_player1_position = glm::vec3(0.0f, 0.0f, 0.0f);
 glm::vec3 g_player1_movement = glm::vec3(0.0f, 0.0f, 0.0f);
-glm::vec3 g_player1_rotation = glm::vec3(0.0f, 0.0f, 0.0f);
-glm::vec3 g_player1_scale    = glm::vec3(0.0f, 0.0f, 0.0f);
+float g_player1_rotation = 0.0f;
+glm::vec3 g_player1_scale = glm::vec3(0.0f, 0.0f, 0.0f);
 
 // Paddle 2
 glm::vec3 g_player2_position = glm::vec3(0.0f, 0.0f, 0.0f);
 glm::vec3 g_player2_movement = glm::vec3(0.0f, 0.0f, 0.0f);
-glm::vec3 g_player2_rotation = glm::vec3(0.0f, 0.0f, 0.0f);
-glm::vec3 g_player2_scale    = glm::vec3(0.0f, 0.0f, 0.0f);
+float g_player2_rotation = 0.0f;
+glm::vec3 g_player2_scale = glm::vec3(0.0f, 0.0f, 0.0f);
 
 // Ball
 glm::vec3 g_ball_position = glm::vec3(0.0f, 0.0f, 0.0f);
 glm::vec3 g_ball_movement = glm::vec3(0.0f, 0.0f, 0.0f);
-glm::vec3 g_ball_rotation = glm::vec3(0.0f, 0.0f, 0.0f);
-glm::vec3 g_ball_scale    = glm::vec3(0.0f, 0.0f, 0.0f);
+float g_ball_rotation = 0.0f;
+glm::vec3 g_ball_scale = glm::vec3(0.0f, 0.0f, 0.0f);
+
+bool g_player1_paddle_next = true;  // which paddle should hit the ball next
 
 // glm::vec3 g_player_orientation = glm::vec3(0.0f, 0.0f, 0.0f);
 // glm::vec3 g_player_rotation = glm::vec3(0.0f, 0.0f, 0.0f);
 
 // How fast to move the paddles
 float g_player_speed = 5.0f; // move 1 unit per second
+float g_ball_speed = 2.5f;
 
-// Charge level for paddles - 
+// Charge level for paddles -
 glm::uint g_player1_charge = 100;
 glm::uint g_player2_charge = 100;
 
@@ -164,7 +167,7 @@ void initialise()
     g_projection_matrix = glm::ortho(-5.0f, 5.0f, -3.75f, 3.75f, -1.0f, 1.0f);
 
     // Set initial ball movement
-    g_ball_movement = glm::vec3(-1.0f, 0.0f, 0.0f);
+    g_ball_movement = glm::vec3(-1.0f, 1.0f, 0.0f);
 
     g_shader_program.set_projection_matrix(g_projection_matrix);
     g_shader_program.set_view_matrix(g_view_matrix);
@@ -208,7 +211,7 @@ void process_input()
                 break;
             case SDLK_a:
                 g_player1_movement.x = -1.0f;
-				break;
+                break;
             case SDLK_d:
                 g_player1_movement.x = 1.0f;
                 break;
@@ -258,7 +261,7 @@ void process_input()
     }                                   //
     else if (key_state[SDL_SCANCODE_D]) //
     {                                   //
-        g_player1_movement.x = 1.0f;   //
+        g_player1_movement.x = 1.0f;    //
     }                                   //
 
     // player 2
@@ -293,7 +296,7 @@ void update()
     // �������������������������������� NEW STUFF ������������������������� //
     // Add direction * units per second * elapsed time                      //
     g_player1_position += g_player1_movement * g_player_speed * delta_time; //
-    g_ball_position    += g_ball_movement    * g_player_speed * delta_time;
+    g_ball_position += g_ball_movement * g_ball_speed * delta_time;
 
     // Player 2 AI
     if (g_player2_is_ai)
@@ -347,7 +350,7 @@ void update()
 
     // Collision Detection
     /** ———— COLLISION DETECTION ———— **/
-    float collision_factor = 0.09;
+    float collision_factor = 0.40f;
     float x1_distance = fabs(g_player1_position.x + PLAYER1_INIT_POSITION.x - g_ball_position.x) - ((1 * collision_factor + 1 * collision_factor) / 2.0f);
     float y1_distance = fabs(g_player1_position.y + PLAYER1_INIT_POSITION.y - g_ball_position.y) - ((1 * collision_factor + 1 * collision_factor) / 2.0f);
     float x2_distance = fabs(g_player2_position.x + PLAYER2_INIT_POSITION.x - g_ball_position.x) - ((1 * collision_factor + 1 * collision_factor) / 2.0f);
@@ -355,12 +358,17 @@ void update()
     // float x_distance = fabs(g_player1_position.x - CUP_INIT_POS.x) - ((FLOWER_INIT_SCA.x + CUP_INIT_SCA.x) / 2.0f);
     // float y_distance = fabs(g_player1_position.y - CUP_INIT_POS.y) - ((FLOWER_INIT_SCA.y + CUP_INIT_SCA.y) / 2.0f);
 
-    if ((x1_distance < 0.0f && y1_distance < 0.0f) || (x2_distance < 0.0f && y2_distance < 0.0f))
+    if ((g_player1_paddle_next && x1_distance < 0.0f && y1_distance < 0.0f) || (!g_player1_paddle_next && x2_distance < 0.0f && y2_distance < 0.0f))
     {
         LOG("COLLISION!");
         std::cout << x1_distance << '\n';
         g_ball_movement.x *= -1.0f;
         g_ball_movement.y *= -1.0f;
+
+        g_player1_paddle_next = !g_player1_paddle_next;  // change which paddle hits the ball next
+
+        // randomly move ball y direction
+        g_ball_movement.y *= (rand() % 2) ? 1.0f : -1.0f;
     }
 
     // Move paddle based on key presses
@@ -373,17 +381,45 @@ void update()
     g_ball_matrix = glm::mat4(1.0f);
     g_ball_matrix = glm::translate(g_ball_matrix, g_ball_position);
 
+    // Set ball rotation
+    if (g_ball_movement.x > 0.0f)
+    {
+        g_ball_rotation = 90.0f;
+    }
+    else
+    {
+        g_ball_rotation = -90.0f;
+    }
+    if ((g_ball_movement.y > 0.0f && g_ball_movement.x < 0.0f) || (g_ball_movement.y < 0.0f && g_ball_movement.x > 0.0f))
+    {
+		g_ball_rotation -= 45.0f;
+    }
+    else {
+        g_ball_rotation += 45.0f;
+    }
+
+    // g_ball_matrix       = glm::rotate(g_ball_matrix, glm::radians(g_ball_rotation), glm::vec3(0.0f, 0.0f, 1.0f));
+    g_ball_matrix = glm::rotate(g_ball_matrix, glm::radians(g_ball_rotation), glm::vec3(0.0f, 0.0f, 1.0f));
+    // g_obj2_model_matrix = glm::rotate(g_obj2_model_matrix, glm::radians(g_obj2_rotation), glm::vec3(0.0f, 0.0f, 1.0f));
+
     // Check if ball is out of bounds
+    if (g_ball_position.y > 3.5f || g_ball_position.y < -3.5f)
+    {
+        g_ball_movement.y *= -1.0f;
+    }
+
     if (g_ball_position.x > 5.0f || g_ball_position.x < -5.0f)
     {
-		// Reset ball position
-		g_ball_position = glm::vec3(0.0f, 0.0f, 0.0f);
-		g_ball_matrix = glm::mat4(1.0f);
-		g_ball_matrix = glm::translate(g_ball_matrix, g_ball_position);
+        // game over
+        g_game_is_running = false;
+        // // Reset ball position
+        // g_ball_position = glm::vec3(0.0f, 0.0f, 0.0f);
+        // g_ball_matrix = glm::mat4(1.0f);
+        // g_ball_matrix = glm::translate(g_ball_matrix, g_ball_position);
 
-		// Reset ball movement
-		g_ball_movement = glm::vec3(-1.0f, 0.0f, 0.0f);
-	}
+        // // Reset ball movement
+        // g_ball_movement = glm::vec3(-1.0f, 0.0f, 0.0f);
+    }
 
     // �������������������������������������������������������������������� //
 }
