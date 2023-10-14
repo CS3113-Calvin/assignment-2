@@ -26,9 +26,10 @@
 
 #include <SDL.h>
 #include <SDL_opengl.h>
-#include "glm/mat4x4.hpp"
-#include "glm/gtc/matrix_transform.hpp"
+
 #include "ShaderProgram.h"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/mat4x4.hpp"
 #include "stb_image.h"
 
 const int WINDOW_WIDTH = 640,
@@ -49,24 +50,32 @@ const char V_SHADER_PATH[] = "shaders/vertex_textured.glsl",
 
 const float MILLISECONDS_IN_SECOND = 1000.0;
 
-const int NUMBER_OF_TEXTURES = 1; // to be generated, that is
-const GLint LEVEL_OF_DETAIL = 0;  // base image level; Level n is the nth mipmap reduction image
-const GLint TEXTURE_BORDER = 0;   // this value MUST be zero
+const int NUMBER_OF_TEXTURES = 1;  // to be generated, that is
+const GLint LEVEL_OF_DETAIL = 0;   // base image level; Level n is the nth mipmap reduction image
+const GLint TEXTURE_BORDER = 0;    // this value MUST be zero
 
-const char PLAYER_SPRITE_FILEPATH[] = "part_electronic_battery_modern_0.png";
-const char BALL_SPRITE_FILEPATH[] = "bolt.png";
+const char PLAYER_SPRITE_FILEPATH[] = "assets/battery.png";
+const char BALL_SPRITE_FILEPATH[] = "assets/bolt.png";
+const char PLAYER1_WIN_FILEPATH[] = "assets/player1_win.png";
+const char PLAYER2_WIN_FILEPATH[] = "assets/player2_win.png";
 
 SDL_Window *g_display_window;
 bool g_game_is_running = true;
 
 ShaderProgram g_shader_program;
-GLuint g_player1_texture_id;
-GLuint g_player2_texture_id;
-GLuint g_ball_texture_id;
+
+// Textures
+GLuint g_player1_texture_id,
+    g_player2_texture_id,
+    g_ball_texture_id,
+    g_player1_win_texture_id,
+    g_player2_win_texture_id;
 glm::mat4 g_view_matrix,
     g_player1_matrix,
     g_player2_matrix,
     g_ball_matrix,
+    g_player1_win_matrix,
+    g_player2_win_matrix,
     g_projection_matrix;
 
 float g_previous_ticks = 0.0f;
@@ -99,7 +108,7 @@ bool g_player1_paddle_next = true;  // which paddle should hit the ball next
 // glm::vec3 g_player_rotation = glm::vec3(0.0f, 0.0f, 0.0f);
 
 // How fast to move the paddles
-float g_player_speed = 5.0f; // move 1 unit per second
+float g_player_speed = 5.0f;  // move 1 unit per second
 float g_ball_speed = 2.5f;
 
 // Charge level for paddles -
@@ -108,16 +117,18 @@ glm::uint g_player2_charge = 100;
 
 // ai
 bool g_player2_is_ai = false;
-glm::vec3 g_player2_ai_movement = glm::vec3(0.0f, 1.0f, 0.0f); // default move up
+glm::vec3 g_player2_ai_movement = glm::vec3(0.0f, 1.0f, 0.0f);  // default move up
 
-GLuint load_texture(const char *filepath)
-{
+// who won
+bool g_player1_win = false;
+bool g_player2_win = false;
+
+GLuint load_texture(const char *filepath) {
     // STEP 1: Loading the image file
     int width, height, number_of_components;
     unsigned char *image = stbi_load(filepath, &width, &height, &number_of_components, STBI_rgb_alpha);
 
-    if (image == NULL)
-    {
+    if (image == NULL) {
         LOG("Unable to load image. Make sure the path is correct.");
         assert(false);
     }
@@ -138,8 +149,7 @@ GLuint load_texture(const char *filepath)
     return textureID;
 }
 
-void initialise()
-{
+void initialise() {
     SDL_Init(SDL_INIT_VIDEO);
     g_display_window = SDL_CreateWindow("Hello, Textures!",
                                         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
@@ -157,17 +167,29 @@ void initialise()
 
     g_shader_program.load(V_SHADER_PATH, F_SHADER_PATH);
 
+    // Init textures
     g_player1_texture_id = load_texture(PLAYER_SPRITE_FILEPATH);
     g_player2_texture_id = load_texture(PLAYER_SPRITE_FILEPATH);
     g_ball_texture_id = load_texture(BALL_SPRITE_FILEPATH);
+    g_player1_win_texture_id = load_texture(PLAYER1_WIN_FILEPATH);
+    g_player2_win_texture_id = load_texture(PLAYER2_WIN_FILEPATH);
+
+    // Init matrices
     g_player1_matrix = glm::mat4(1.0f);
     g_player2_matrix = glm::mat4(1.0f);
     g_ball_matrix = glm::mat4(1.0f);
+    g_player1_win_matrix = glm::mat4(1.0f);
+    g_player2_win_matrix = glm::mat4(1.0f);
+
     g_view_matrix = glm::mat4(1.0f);
     g_projection_matrix = glm::ortho(-5.0f, 5.0f, -3.75f, 3.75f, -1.0f, 1.0f);
 
     // Set initial ball movement
     g_ball_movement = glm::vec3(-1.0f, 1.0f, 0.0f);
+
+    // Scale win images
+    g_player1_win_matrix = glm::scale(g_player1_win_matrix, glm::vec3(5.0f, 3.0f, 1.0f));
+    g_player2_win_matrix = glm::scale(g_player2_win_matrix, glm::vec3(5.0f, 3.0f, 1.0f));
 
     g_shader_program.set_projection_matrix(g_projection_matrix);
     g_shader_program.set_view_matrix(g_view_matrix);
@@ -179,164 +201,148 @@ void initialise()
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
-void process_input()
-{
+void process_input() {
     // �������������������������������� NEW STUFF �������������������������� //
     // VERY IMPORTANT: If nothing is pressed, we don't want to go anywhere   //
-    g_player1_movement = glm::vec3(0.0f); //
+    g_player1_movement = glm::vec3(0.0f);  //
     g_player2_movement = glm::vec3(0.0f);
     //
     // �������������������������������� KEYSTROKES ������������������������� //
     //
-    SDL_Event event; //
-    while (SDL_PollEvent(&event))
-    {
-        switch (event.type)
-        {
-            // End game
-        case SDL_QUIT:
-        case SDL_WINDOWEVENT_CLOSE:
-            g_game_is_running = false;
-            break;
-
-        case SDL_KEYDOWN:
-            switch (event.key.keysym.sym)
-            {
-            // Player 1 (w and s keyboard keys)
-            case SDLK_w:
-                g_player1_movement.y = -1.0f;
-                break;
-            case SDLK_s:
-                g_player1_movement.y = 1.0f;
-                break;
-            case SDLK_a:
-                g_player1_movement.x = -1.0f;
-                break;
-            case SDLK_d:
-                g_player1_movement.x = 1.0f;
-                break;
-
-            // Player 2 (up and down arrow keys)
-            case SDLK_UP:
-                g_player2_movement.y = -1.0f;
-                break;
-            case SDLK_DOWN:
-                g_player2_movement.y = 1.0f;
-                break;
-
-            // Toggle player 2 AI
-            case SDLK_t:
-                g_player2_is_ai = !g_player2_is_ai;
-                break;
-
-            // Quit game
-            case SDLK_q:
-                // Quit the game with a keystroke
+    SDL_Event event;  //
+    while (SDL_PollEvent(&event)) {
+        switch (event.type) {
+                // End game
+            case SDL_QUIT:
+            case SDL_WINDOWEVENT_CLOSE:
                 g_game_is_running = false;
                 break;
+
+            case SDL_KEYDOWN:
+                switch (event.key.keysym.sym) {
+                    // Player 1 (w and s keyboard keys)
+                    case SDLK_w:
+                        g_player1_movement.y = -1.0f;
+                        break;
+                    case SDLK_s:
+                        g_player1_movement.y = 1.0f;
+                        break;
+                    case SDLK_a:
+                        g_player1_movement.x = -1.0f;
+                        break;
+                    case SDLK_d:
+                        g_player1_movement.x = 1.0f;
+                        break;
+
+                    // Player 2 (up and down arrow keys)
+                    case SDLK_UP:
+                        g_player2_movement.y = -1.0f;
+                        break;
+                    case SDLK_DOWN:
+                        g_player2_movement.y = 1.0f;
+                        break;
+
+                    // Toggle player 2 AI
+                    case SDLK_t:
+                        g_player2_is_ai = !g_player2_is_ai;
+                        break;
+
+                    // Quit game
+                    case SDLK_q:
+                        // Quit the game with a keystroke
+                        g_game_is_running = false;
+                        break;
+                    default:
+                        break;
+                }
+
             default:
                 break;
-            }
-
-        default:
-            break;
         }
     }
 
     // ������������������������������� KEY HOLD ���������������������������� //
     //
-    const Uint8 *key_state = SDL_GetKeyboardState(NULL); //
+    const Uint8 *key_state = SDL_GetKeyboardState(NULL);  //
     // player 1
-    if (key_state[SDL_SCANCODE_W])
-    {
-        g_player1_movement.y = 1.0f;    //
-    }                                   //
-    else if (key_state[SDL_SCANCODE_S]) //
-    {                                   //
-        g_player1_movement.y = -1.0f;   //
-    }                                   //
-    else if (key_state[SDL_SCANCODE_A]) //
-    {                                   //
-        g_player1_movement.x = -1.0f;   //
-    }                                   //
-    else if (key_state[SDL_SCANCODE_D]) //
-    {                                   //
-        g_player1_movement.x = 1.0f;    //
-    }                                   //
+    if (key_state[SDL_SCANCODE_W]) {
+        g_player1_movement.y = 1.0f;     //
+    }                                    //
+    else if (key_state[SDL_SCANCODE_S])  //
+    {                                    //
+        g_player1_movement.y = -1.0f;    //
+    }                                    //
+    else if (key_state[SDL_SCANCODE_A])  //
+    {                                    //
+        g_player1_movement.x = -1.0f;    //
+    }                                    //
+    else if (key_state[SDL_SCANCODE_D])  //
+    {                                    //
+        g_player1_movement.x = 1.0f;     //
+    }                                    //
 
     // player 2
-    if (key_state[SDL_SCANCODE_UP])        //
-    {                                      //
-        g_player2_movement.y = 1.0f;       //
-    }                                      //
-    else if (key_state[SDL_SCANCODE_DOWN]) //
-    {                                      //
-        g_player2_movement.y = -1.0f;      //
-    }                                      //
-                                           //
+    if (key_state[SDL_SCANCODE_UP])         //
+    {                                       //
+        g_player2_movement.y = 1.0f;        //
+    }                                       //
+    else if (key_state[SDL_SCANCODE_DOWN])  //
+    {                                       //
+        g_player2_movement.y = -1.0f;       //
+    }                                       //
+                                            //
     // This makes sure that the player can't "cheat" their way into moving   //
     // faster                                                                //
-    if (glm::length(g_player1_movement) > 1.0f)                  //
-    {                                                            //
-        g_player1_movement = glm::normalize(g_player1_movement); //
-    }                                                            //
-    if (glm::length(g_player2_movement) > 1.0f)                  //
-    {                                                            //
-        g_player2_movement = glm::normalize(g_player2_movement); //
-    }                                                            //
+    if (glm::length(g_player1_movement) > 1.0f)                   //
+    {                                                             //
+        g_player1_movement = glm::normalize(g_player1_movement);  //
+    }                                                             //
+    if (glm::length(g_player2_movement) > 1.0f)                   //
+    {                                                             //
+        g_player2_movement = glm::normalize(g_player2_movement);  //
+    }                                                             //
     // ��������������������������������������������������������������������� //
 }
 
-void update()
-{
-    float ticks = (float)SDL_GetTicks() / MILLISECONDS_IN_SECOND; // get the current number of ticks
-    float delta_time = ticks - g_previous_ticks;                  // the delta time is the difference from the last frame
+void update() {
+    if (g_player1_win || g_player2_win) {  // Stop updates if someone wins
+        return;
+    }
+    float ticks = (float)SDL_GetTicks() / MILLISECONDS_IN_SECOND;  // get the current number of ticks
+    float delta_time = ticks - g_previous_ticks;                   // the delta time is the difference from the last frame
     g_previous_ticks = ticks;
 
-    // �������������������������������� NEW STUFF ������������������������� //
-    // Add direction * units per second * elapsed time                      //
-    g_player1_position += g_player1_movement * g_player_speed * delta_time; //
+    // Add direction * units per second * elapsed time
+    g_player1_position += g_player1_movement * g_player_speed * delta_time;
     g_ball_position += g_ball_movement * g_ball_speed * delta_time;
 
     // Player 2 AI
-    if (g_player2_is_ai)
-    {
+    if (g_player2_is_ai) {
         // Move up and down
-        if (g_player2_position.y >= 3.0f)
-        {
+        if (g_player2_position.y >= 3.0f) {
             g_player2_ai_movement.y = -1.0f;
-        }
-        else if (g_player2_position.y <= -3.0f)
-        {
+        } else if (g_player2_position.y <= -3.0f) {
             g_player2_ai_movement.y = 1.0f;
         }
         // } else {
         //     g_player2_ai_movement.y = 1.0f;
         // }
-        g_player2_position += g_player2_ai_movement * g_player_speed * delta_time; //
-    }
-    else
-    {
+        g_player2_position += g_player2_ai_movement * g_player_speed * delta_time;
+    } else {
         // Use key presses
-        g_player2_position += g_player2_movement * g_player_speed * delta_time; //
+        g_player2_position += g_player2_movement * g_player_speed * delta_time;
     }
 
     // Bound position by screen edges
-    if (g_player1_position.y > 3.0f)
-    {
+    if (g_player1_position.y > 3.0f) {
         g_player1_position.y = 3.0f;
-    }
-    else if (g_player1_position.y < -3.0f)
-    {
+    } else if (g_player1_position.y < -3.0f) {
         g_player1_position.y = -3.0f;
     }
 
-    if (g_player2_position.y > 3.0f)
-    {
+    if (g_player2_position.y > 3.0f) {
         g_player2_position.y = 3.0f;
-    }
-    else if (g_player2_position.y < -3.0f)
-    {
+    } else if (g_player2_position.y < -3.0f) {
         g_player2_position.y = -3.0f;
     }
 
@@ -358,43 +364,53 @@ void update()
     // float x_distance = fabs(g_player1_position.x - CUP_INIT_POS.x) - ((FLOWER_INIT_SCA.x + CUP_INIT_SCA.x) / 2.0f);
     // float y_distance = fabs(g_player1_position.y - CUP_INIT_POS.y) - ((FLOWER_INIT_SCA.y + CUP_INIT_SCA.y) / 2.0f);
 
-    if ((g_player1_paddle_next && x1_distance < 0.0f && y1_distance < 0.0f) || (!g_player1_paddle_next && x2_distance < 0.0f && y2_distance < 0.0f))
-    {
-        LOG("COLLISION!");
-        std::cout << x1_distance << '\n';
+    // Collision with paddle
+    if ((g_player1_paddle_next && x1_distance < 0.0f && y1_distance < 0.0f) || (!g_player1_paddle_next && x2_distance < 0.0f && y2_distance < 0.0f)) {
+        // LOG("COLLISION!");
+        // std::cout << x1_distance << ' ' x2_distance << '\n';
         g_ball_movement.x *= -1.0f;
         g_ball_movement.y *= -1.0f;
 
-        g_player1_paddle_next = !g_player1_paddle_next;  // change which paddle hits the ball next
-
         // randomly move ball y direction
         g_ball_movement.y *= (rand() % 2) ? 1.0f : -1.0f;
+
+        // Restore charge to paddle
+        if (g_player1_paddle_next) {
+            g_player1_charge = 100;
+        } else {
+            g_player2_charge = 100;
+        }
+
+        g_player1_paddle_next = !g_player1_paddle_next;  // change which paddle hits the ball next
     }
 
-    // Move paddle based on key presses
-    g_player1_matrix = glm::translate(g_player1_matrix, g_player1_position);
-    g_player2_matrix = glm::translate(g_player2_matrix, g_player2_position);
+    // Move paddle based on key presses if there is enough charge
+    if (g_player1_charge > 0) {
+        g_player1_matrix = glm::translate(g_player1_matrix, g_player1_position);
+    }
+    if (g_player2_charge > 0) {
+        g_player2_matrix = glm::translate(g_player2_matrix, g_player2_position);
+    }
 
     // Consume battery charge
+    if (g_player1_movement.x != 0.0f || g_player1_movement.y != 0.0f) {
+        LOG(g_player1_charge);
+        g_player1_charge = glm::max(g_player1_charge - fabs(g_player1_movement.y), 0.0f);
+    }
 
     // Move bolt
     g_ball_matrix = glm::mat4(1.0f);
     g_ball_matrix = glm::translate(g_ball_matrix, g_ball_position);
 
     // Set ball rotation
-    if (g_ball_movement.x > 0.0f)
-    {
+    if (g_ball_movement.x > 0.0f) {
         g_ball_rotation = 90.0f;
-    }
-    else
-    {
+    } else {
         g_ball_rotation = -90.0f;
     }
-    if ((g_ball_movement.y > 0.0f && g_ball_movement.x < 0.0f) || (g_ball_movement.y < 0.0f && g_ball_movement.x > 0.0f))
-    {
-		g_ball_rotation -= 45.0f;
-    }
-    else {
+    if ((g_ball_movement.y > 0.0f && g_ball_movement.x < 0.0f) || (g_ball_movement.y < 0.0f && g_ball_movement.x > 0.0f)) {
+        g_ball_rotation -= 45.0f;
+    } else {
         g_ball_rotation += 45.0f;
     }
 
@@ -403,48 +419,48 @@ void update()
     // g_obj2_model_matrix = glm::rotate(g_obj2_model_matrix, glm::radians(g_obj2_rotation), glm::vec3(0.0f, 0.0f, 1.0f));
 
     // Check if ball is out of bounds
-    if (g_ball_position.y > 3.5f || g_ball_position.y < -3.5f)
-    {
+    if (g_ball_position.y > 3.5f || g_ball_position.y < -3.5f) {
         g_ball_movement.y *= -1.0f;
     }
 
-    if (g_ball_position.x > 5.0f || g_ball_position.x < -5.0f)
-    {
-        // game over
-        g_game_is_running = false;
-        // // Reset ball position
-        // g_ball_position = glm::vec3(0.0f, 0.0f, 0.0f);
-        // g_ball_matrix = glm::mat4(1.0f);
-        // g_ball_matrix = glm::translate(g_ball_matrix, g_ball_position);
-
-        // // Reset ball movement
-        // g_ball_movement = glm::vec3(-1.0f, 0.0f, 0.0f);
+    if (g_ball_position.x > 5.0f) {
+        g_player1_win = true;
     }
+    if (g_ball_position.x < -5.0f) {
+        g_player2_win = true;
+    }
+    // game over
+    // g_game_is_running = false;
+    // // Reset ball position
+    // g_ball_position = glm::vec3(0.0f, 0.0f, 0.0f);
+    // g_ball_matrix = glm::mat4(1.0f);
+    // g_ball_matrix = glm::translate(g_ball_matrix, g_ball_position);
+
+    // // Reset ball movement
+    // g_ball_movement = glm::vec3(-1.0f, 0.0f, 0.0f);
 
     // �������������������������������������������������������������������� //
 }
 
-void draw_object(glm::mat4 &object_model_matrix, GLuint &object_texture_id)
-{
+void draw_object(glm::mat4 &object_model_matrix, GLuint &object_texture_id) {
     g_shader_program.set_model_matrix(object_model_matrix);
     glBindTexture(GL_TEXTURE_2D, object_texture_id);
-    glDrawArrays(GL_TRIANGLES, 0, 6); // we are now drawing 2 triangles, so we use 6 instead of 3
+    glDrawArrays(GL_TRIANGLES, 0, 6);  // we are now drawing 2 triangles, so we use 6 instead of 3
 }
 
-void render()
-{
+void render() {
     glClear(GL_COLOR_BUFFER_BIT);
 
     // Vertices
     float vertices[] = {
-        -0.5f, -0.5f, 0.5f, -0.5f, 0.5f, 0.5f, // triangle 1
-        -0.5f, -0.5f, 0.5f, 0.5f, -0.5f, 0.5f  // triangle 2
+        -0.5f, -0.5f, 0.5f, -0.5f, 0.5f, 0.5f,  // triangle 1
+        -0.5f, -0.5f, 0.5f, 0.5f, -0.5f, 0.5f   // triangle 2
     };
 
     // Textures
     float texture_coordinates[] = {
-        0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, // triangle 1
-        0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, // triangle 2
+        0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f,  // triangle 1
+        0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f,  // triangle 2
     };
 
     glVertexAttribPointer(g_shader_program.get_position_attribute(), 2, GL_FLOAT, false, 0, vertices);
@@ -457,6 +473,12 @@ void render()
     draw_object(g_player1_matrix, g_player1_texture_id);
     draw_object(g_player2_matrix, g_player2_texture_id);
     draw_object(g_ball_matrix, g_ball_texture_id);
+    if (g_player1_win) {
+        draw_object(g_player1_win_matrix, g_player1_win_texture_id);
+    }
+    if (g_player2_win) {
+        draw_object(g_player2_win_matrix, g_player2_win_texture_id);
+    }
 
     // We disable two attribute arrays now
     glDisableVertexAttribArray(g_shader_program.get_position_attribute());
@@ -467,12 +489,10 @@ void render()
 
 void shutdown() { SDL_Quit(); }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     initialise();
 
-    while (g_game_is_running)
-    {
+    while (g_game_is_running) {
         process_input();
         update();
         render();
