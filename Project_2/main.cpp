@@ -54,7 +54,10 @@ const int NUMBER_OF_TEXTURES = 1;  // to be generated, that is
 const GLint LEVEL_OF_DETAIL = 0;   // base image level; Level n is the nth mipmap reduction image
 const GLint TEXTURE_BORDER = 0;    // this value MUST be zero
 
-const char PLAYER_SPRITE_FILEPATH[] = "assets/battery.png";
+const char PLAYER_SPRITE_100_FILEPATH[] = "assets/battery.png";
+const char PLAYER_SPRITE_50_FILEPATH[] = "assets/battery_dark_50.png";
+const char PLAYER_SPRITE_0_FILEPATH[] = "assets/battery_dark_0.png";
+const char PLAYER_SPRITE_GLOW_FILEPATH[] = "assets/battery_glow.png";
 const char BALL_SPRITE_FILEPATH[] = "assets/bolt.png";
 const char PLAYER1_WIN_FILEPATH[] = "assets/player1_win.png";
 const char PLAYER2_WIN_FILEPATH[] = "assets/player2_win.png";
@@ -67,6 +70,11 @@ ShaderProgram g_shader_program;
 // Textures
 GLuint g_player1_texture_id,
     g_player2_texture_id,
+    g_player_texture_id,
+    g_battery_100_texture_id,
+    g_battery_50_texture_id,
+    g_battery_0_texture_id,
+    g_battery_glow_texture_id,
     g_ball_texture_id,
     g_player1_win_texture_id,
     g_player2_win_texture_id;
@@ -111,9 +119,10 @@ bool g_player1_paddle_next = true;  // which paddle should hit the ball next
 float g_player_speed = 5.0f;  // move 1 unit per second
 float g_ball_speed = 2.5f;
 
-// Charge level for paddles -
-glm::uint g_player1_charge = 100;
-glm::uint g_player2_charge = 100;
+// Charge level for paddles
+const glm::uint MAX_CHARGE = 100;
+glm::uint g_player1_charge = MAX_CHARGE;
+glm::uint g_player2_charge = MAX_CHARGE;
 
 // ai
 bool g_player2_is_ai = false;
@@ -168,11 +177,20 @@ void initialise() {
     g_shader_program.load(V_SHADER_PATH, F_SHADER_PATH);
 
     // Init textures
-    g_player1_texture_id = load_texture(PLAYER_SPRITE_FILEPATH);
-    g_player2_texture_id = load_texture(PLAYER_SPRITE_FILEPATH);
+    // g_player1_texture_id = load_texture(PLAYER_SPRITE_FILEPATH);
+    // g_player2_texture_id = load_texture(PLAYER_SPRITE_FILEPATH);
+    g_battery_100_texture_id = load_texture(PLAYER_SPRITE_100_FILEPATH);
+    g_battery_50_texture_id = load_texture(PLAYER_SPRITE_50_FILEPATH);
+    g_battery_0_texture_id = load_texture(PLAYER_SPRITE_0_FILEPATH);
+    g_battery_glow_texture_id = load_texture(PLAYER_SPRITE_GLOW_FILEPATH);
+    g_player1_texture_id = g_battery_100_texture_id;
+    g_player2_texture_id = g_battery_100_texture_id;
+
     g_ball_texture_id = load_texture(BALL_SPRITE_FILEPATH);
     g_player1_win_texture_id = load_texture(PLAYER1_WIN_FILEPATH);
     g_player2_win_texture_id = load_texture(PLAYER2_WIN_FILEPATH);
+
+
 
     // Init matrices
     g_player1_matrix = glm::mat4(1.0f);
@@ -305,41 +323,53 @@ void process_input() {
 }
 
 void update() {
-    if (g_player1_win || g_player2_win) {  // Stop updates if someone wins
-        return;
-    }
     float ticks = (float)SDL_GetTicks() / MILLISECONDS_IN_SECOND;  // get the current number of ticks
     float delta_time = ticks - g_previous_ticks;                   // the delta time is the difference from the last frame
     g_previous_ticks = ticks;
+
+    if (g_player1_win || g_player2_win) {  // Only update position if no one has won yet
+        g_player1_movement = glm::vec3(0.0f, 0.0f, 0.0f);
+        g_player2_movement = glm::vec3(0.0f, 0.0f, 0.0f);
+        g_player2_ai_movement = glm::vec3(0.0f, 0.0f, 0.0f);
+    }  // don't return yet so paddle position is still correct
+
+    // If no charge, slow down movement by 90%
+    if (g_player1_charge > 150) {
+        g_player1_movement *= 1.50f;
+    } else if (g_player1_charge <= 20) {
+        // g_player1_movement = glm::vec3(0.0f, 0.0f, 0.0f);
+        g_player1_movement *= 0.25f;
+    }
+    if (g_player2_charge > 150) {
+        g_player2_movement *= 1.50f;
+    } else if (g_player2_charge <= 20) {
+		// g_player2_movement = glm::vec3(0.0f, 0.0f, 0.0f);
+        g_player2_movement *= 0.25f;
+	}
 
     // Add direction * units per second * elapsed time
     g_player1_position += g_player1_movement * g_player_speed * delta_time;
     g_ball_position += g_ball_movement * g_ball_speed * delta_time;
 
-    // Player 2 AI
-    if (g_player2_is_ai) {
+    // Player 2
+    if (g_player2_is_ai) {  // Use AI
         // Move up and down
         if (g_player2_position.y >= 3.0f) {
             g_player2_ai_movement.y = -1.0f;
         } else if (g_player2_position.y <= -3.0f) {
             g_player2_ai_movement.y = 1.0f;
         }
-        // } else {
-        //     g_player2_ai_movement.y = 1.0f;
-        // }
         g_player2_position += g_player2_ai_movement * g_player_speed * delta_time;
-    } else {
-        // Use key presses
+    } else {  // Use key input
         g_player2_position += g_player2_movement * g_player_speed * delta_time;
     }
 
-    // Bound position by screen edges
+    // Bound paddle to top and bottom screen edges
     if (g_player1_position.y > 3.0f) {
         g_player1_position.y = 3.0f;
     } else if (g_player1_position.y < -3.0f) {
         g_player1_position.y = -3.0f;
     }
-
     if (g_player2_position.y > 3.0f) {
         g_player2_position.y = 3.0f;
     } else if (g_player2_position.y < -3.0f) {
@@ -350,7 +380,7 @@ void update() {
     g_player1_matrix = glm::mat4(1.0f);
     g_player2_matrix = glm::mat4(1.0f);
 
-    // Set paddle locations to edge of screen
+    // Set paddle locations to horizontal edge of screen
     g_player1_matrix = glm::translate(g_player1_matrix, PLAYER1_INIT_POSITION);
     g_player2_matrix = glm::translate(g_player2_matrix, PLAYER2_INIT_POSITION);
 
@@ -376,26 +406,58 @@ void update() {
 
         // Restore charge to paddle
         if (g_player1_paddle_next) {
-            g_player1_charge = 100;
+            g_player1_charge += MAX_CHARGE;
         } else {
-            g_player2_charge = 100;
+            g_player2_charge += MAX_CHARGE;
         }
 
         g_player1_paddle_next = !g_player1_paddle_next;  // change which paddle hits the ball next
     }
 
     // Move paddle based on key presses if there is enough charge
-    if (g_player1_charge > 0) {
-        g_player1_matrix = glm::translate(g_player1_matrix, g_player1_position);
-    }
-    if (g_player2_charge > 0) {
-        g_player2_matrix = glm::translate(g_player2_matrix, g_player2_position);
-    }
+//    if (g_player1_charge > 0) {
+//        g_player1_matrix = glm::translate(g_player1_matrix, g_player1_position);
+//    }
+//    if (g_player2_charge > 0) {
+//        g_player2_matrix = glm::translate(g_player2_matrix, g_player2_position);
+//    }
+
+    g_player1_matrix = glm::translate(g_player1_matrix, g_player1_position);
+    g_player2_matrix = glm::translate(g_player2_matrix, g_player2_position);
 
     // Consume battery charge
     if (g_player1_movement.x != 0.0f || g_player1_movement.y != 0.0f) {
         LOG(g_player1_charge);
         g_player1_charge = glm::max(g_player1_charge - fabs(g_player1_movement.y), 0.0f);
+    }
+    if (g_player2_movement.x != 0.0f || g_player2_movement.y != 0.0f) {
+        LOG(g_player2_charge);
+        g_player2_charge = glm::max(g_player2_charge - fabs(g_player2_movement.y), 0.0f);
+    }
+    if (g_player2_is_ai && (g_player2_ai_movement.x != 0.0f || g_player2_ai_movement.y != 0.0f)) {
+        LOG(g_player2_charge);
+        g_player2_charge = glm::max(g_player2_charge - fabs(g_player2_ai_movement.y), 0.0f);
+    }
+
+    // Update paddle texture
+    if (g_player1_charge > 150) {
+        g_player1_texture_id = g_battery_glow_texture_id;
+    } else if (g_player1_charge > 75) {
+		g_player1_texture_id = g_battery_100_texture_id;
+	} else if (g_player1_charge > 20) {
+        g_player1_texture_id = g_battery_50_texture_id;
+    } else {
+        g_player1_texture_id = g_battery_0_texture_id;
+    }
+
+    if (g_player2_charge > 150) {
+		g_player2_texture_id = g_battery_glow_texture_id;
+	} else if (g_player2_charge > 75) {
+        g_player2_texture_id = g_battery_100_texture_id;
+    } else if (g_player2_charge > 20) {
+        g_player2_texture_id = g_battery_50_texture_id;
+    } else {
+        g_player2_texture_id = g_battery_0_texture_id;
     }
 
     // Move bolt
