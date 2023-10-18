@@ -333,17 +333,15 @@ void update() {
         g_player2_ai_movement = glm::vec3(0.0f, 0.0f, 0.0f);
     }  // don't return yet so paddle position is still correct
 
-    // If no charge, slow down movement by 90%
+    // Modify speed based on charge
     if (g_player1_charge > 150) {
-        g_player1_movement *= 1.50f;
+        g_player1_movement *= 1.50f;  // bonus speed of 50%
     } else if (g_player1_charge <= 20) {
-        // g_player1_movement = glm::vec3(0.0f, 0.0f, 0.0f);
-        g_player1_movement *= 0.25f;
+        g_player1_movement *= 0.25f;  // penalty of 75%
     }
     if (g_player2_charge > 150) {
         g_player2_movement *= 1.50f;
     } else if (g_player2_charge <= 20) {
-		// g_player2_movement = glm::vec3(0.0f, 0.0f, 0.0f);
         g_player2_movement *= 0.25f;
 	}
 
@@ -436,7 +434,7 @@ void update() {
     }
     if (g_player2_is_ai && (g_player2_ai_movement.x != 0.0f || g_player2_ai_movement.y != 0.0f)) {
         LOG(g_player2_charge);
-        g_player2_charge = glm::max(g_player2_charge - fabs(g_player2_ai_movement.y), 0.0f);
+        // g_player2_charge = glm::max(g_player2_charge - fabs(g_player2_ai_movement.y), 0.0f);
     }
 
     // Update paddle texture
@@ -450,14 +448,20 @@ void update() {
         g_player1_texture_id = g_battery_0_texture_id;
     }
 
-    if (g_player2_charge > 150) {
-		g_player2_texture_id = g_battery_glow_texture_id;
-	} else if (g_player2_charge > 75) {
+    if (g_player2_is_ai) {  // AI always uses standard speed and does not consume charge
         g_player2_texture_id = g_battery_100_texture_id;
-    } else if (g_player2_charge > 20) {
-        g_player2_texture_id = g_battery_50_texture_id;
-    } else {
-        g_player2_texture_id = g_battery_0_texture_id;
+    }
+
+    else {
+        if (g_player2_charge > 150) {
+            g_player2_texture_id = g_battery_glow_texture_id;
+        } else if (g_player2_charge > 75) {
+            g_player2_texture_id = g_battery_100_texture_id;
+        } else if (g_player2_charge > 20) {
+            g_player2_texture_id = g_battery_50_texture_id;
+        } else {
+            g_player2_texture_id = g_battery_0_texture_id;
+        }
     }
 
     // Move bolt
