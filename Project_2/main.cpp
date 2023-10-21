@@ -8,7 +8,7 @@
  *   - moving the paddle drains the charge
  *   - hitting the bolts recharges the paddle and sends the bolt in the opposite direction
  *   - missing a bolt drains the paddle
- *   - if the paddle runs out of charge, the player loses
+ *   - running out of charge slows the battery down
  * I pledge that I have completed this assignment without
  * collaborating with anyone else, in conformance with the
  * NYU School of Engineering Policies and Procedures on
