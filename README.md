@@ -4,6 +4,18 @@
 - Hitting the lightning bolt charges the battery, moving drains the battery.
 - Running out of charge slows the battery down.
 
+## Attribution
+
+### Assets
+
+- [/Project_2/assets/](./Project_2/assets/)
+  - [background.png](./Project_2/assets/background.png) - [Source](https://grigoreen.tumblr.com/post/106167118417)
+  - [battery.png](./Project_2/assets/battery.png) - [Source](https://github.com/malcolmriley/unused-textures/blob/2ae2fd3c626e59670a9cd521a618f589125a8735/items/part_electronic_battery_modern_0.png)
+  - [battery_dark_0](./Project_2/assets/battery_dark_0.png), [battery_dark_50](./Project_2/assets/battery_dark_50.png), [battery_dark_glow](./Project_2/assets/battery_dark_glow.png) - modified from [battery.png](./Project_2/assets/battery.png)
+  - [bolt.png](./Project_2/assets/bolt.png), [bolt2.png](./Project_2/assets/bolt2.png), [bolt3.png](./Project_2/assets/bolt3.png) - custom
+  - [player1_win.png](./Project_2/assets/player1_win.png) - [Source](https://github.com/leo-daniel/face-off/blob/aa8222b49b31f2db99af168ec6b34822847b2d5f/assets/images/winner-1.png)
+  - [player2_win.png](./Project_2/assets/player2_win.png) - [Source](https://github.com/leo-daniel/face-off/blob/aa8222b49b31f2db99af168ec6b34822847b2d5f/assets/images/winner-2.png)
+
 ## [Assignment Details](https://github.com/sebastianromerocruz/CS3113-material/blob/bed02d31846338bb227056caad1d8577308d54e0/assignments/project_2.md)
 
 <h4 align=center>NYU Tandon School of Engineering</h4>
